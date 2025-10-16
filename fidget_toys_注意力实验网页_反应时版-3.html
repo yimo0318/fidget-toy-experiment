@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fidget Toys 注意力实验 | 反应时间测量</title>
+  <style>
+    :root { --maxw: 900px; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif; line-height: 1.5; margin: 0; background: #f7f7fb; color: #111; }
+    header { background: white; border-bottom: 1px solid #eee; position: sticky; top: 0; z-index: 10; }
+    header .wrap { max-width: var(--maxw); margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; }
+    main { max-width: var(--maxw); margin: 24px auto; padding: 0 16px 48px; }
+    .card { background: white; border: 1px solid #eee; border-radius: 14px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.04); margin: 16px 0; }
+    h1 { font-size: 22px; margin: 6px 0; }
+    h2 { font-size: 20px; margin-top: 0; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    label { font-weight: 600; font-size: 14px; }
+    input[type="text"], select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #ddd; }
+    button { padding: 10px 14px; border-radius: 12px; border: 1px solid #222; background: #111; color: #fff; cursor: pointer; font-weight: 700; }
+    button.secondary { background: #fff; color: #111; border-color: #ddd; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .center { text-align: center; }
+    .muted { color: #666; font-size: 13px; }
+    .hr { height:1px; background:#eee; margin:18px 0; }
+    .progress { height: 8px; background: #eee; border-radius: 999px; overflow: hidden; }
+    .bar { height: 100%; background: #111; width: 0%; transition: width 200ms linear; }
+    .big { font-size: 42px; letter-spacing:.5px; }
+    .stim { font-size: 56px; font-weight: 800; margin: 28px 0 10px; text-align: center; }
+    .choices { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 12px 0; }
+    .grid { display:grid; grid-template-columns: repeat(18, 1fr); gap: 4px; align-items:center; justify-items:center; }
+    .cell { padding: 2px 2px; font-size: 22px; }
+    .kbd { font-family: ui-monospace, monospace; background: #111; color: white; padding: 2px 6px; border-radius: 6px; }
+    .hidden { display: none !important; }
+    .footer { text-align:center; color:#888; font-size:12px; margin-top:24px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div><strong>Fidget Toys Attention Task</strong> <span class="muted">反应时间测量 RT</span></div>
+      <div>
+        <button id="btnUpload" class="secondary" title="Upload all records" disabled>Upload to Server</button>
+        <button id="btnDownload" class="secondary" title="Download CSV" disabled>Download CSV</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 欢迎与登记 -->
+    <section id="screen_welcome" class="card">
+      <h1>Welcome to the Experiment</h1>
+      <p>Fill in your info and consent. There are three mini tasks. Each trial records reaction time.</p>
+      <p class="muted">欢迎参加实验。请填写信息并勾选同意。本实验包含三项小任务，每一题都会记录反应时间。</p>
+      <div class="row">
+        <div>
+          <label>Participant ID 被试编号</label>
+          <input id="pid" type="text" placeholder="e.g., S001" />
+        </div>
+        <div>
+          <label>Group 组别</label>
+          <select id="group">
+            <option value="FT">With fidget toy 使用玩具</option>
+            <option value="NOFT">No fidget toy 不使用玩具</option>
+          </select>
+        </div>
+      </div>
+      <p><label><input id="consent" type="checkbox" /> I consent to participate 我同意参与本研究</label></p>
+      <div class="center"><button id="btnStart" disabled>Start 开始实验</button></div>
+    </section>
+
+    <!-- 统一说明屏 -->
+    <section id="screen_instructions" class="card hidden">
+      <h2 id="inst_title">Instructions</h2>
+      <div id="inst_body"></div>
+      <div class="center"><button id="btnBeginTask">Begin 开始</button></div>
+    </section>
+
+    <!-- 任务屏幕 -->
+    <section id="screen_task" class="card hidden">
+      <div class="progress"><div id="progbar" class="bar"></div></div>
+      <div id="stimulus" class="stim"></div>
+      <div id="task_extra" class="center"></div>
+      <div id="choices" class="choices"></div>
+    </section>
+
+    <!-- 完成 -->
+    <section id="screen_done" class="card hidden">
+      <h2>All Tasks Complete</h2>
+      <p>You can download the CSV or click “Upload to Server” at the top to sync all records.</p>
+      <p class="muted">任务已完成。可以下载 CSV，或点击上方“Upload to Server”把数据汇总到谷歌表格。</p>
+      <div class="center"><button id="btnDownload2" class="secondary">Download CSV</button></div>
+      <p id="upload_status" class="muted"></p>
+    </section>
+
+    <div class="footer">v1.2 | 记录每题反应时间（毫秒）| 顺序：字母搜索 → Stroop → Go/No-Go</div>
+  </main>
+
+  <script>
+    // ======= Config =======
+    const ENDPOINT = 'https://script.google.com/macros/s/AKfycbwaK_9U8tmfsTyUhMESMqrQKJHD9crd7HtllnlgHUkHEadg0qEWKJP4ZJH2F7J1wPNR/exec';
+
+    // ======= Helpers =======
+    const $ = s => document.querySelector(s);
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const shuffle = a => a.map(v=>[Math.random(),v]).sort((x,y)=>x[0]-y[0]).map(x=>x[1]);
+    const now = () => performance.now();
+
+    // ======= State =======
+    const STATE = { pid:'', group:'', taskIndex:0, trialIndex:0, trials:[], data:[] };
+
+    // ======= Welcome page =======
+    const pidInput=$('#pid'), groupSel=$('#group'), consent=$('#consent'), btnStart=$('#btnStart');
+    function updateStart(){ btnStart.disabled = !(pidInput.value.trim() && consent.checked); }
+    ['input','change','keyup'].forEach(ev=>{ pidInput.addEventListener(ev,updateStart); groupSel.addEventListener(ev,updateStart); consent.addEventListener(ev,updateStart); });
+    setInterval(updateStart, 400);
+    btnStart.addEventListener('click', ()=>{ STATE.pid=pidInput.value.trim(); STATE.group=groupSel.value||'FT'; toInstructions(0); });
+
+    // ======= Build trials =======
+    function makeSearchTrials(n=6){
+      const trials=[]; const letters='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      for(let i=0;i<n;i++){
+        const width=18, height=6; const target=Math.floor(Math.random()*4)+6; // 6-9 F
+        let cells=[]; for(let k=0;k<target;k++) cells.push('F');
+        while(cells.length<width*height){ const ch=letters[Math.floor(Math.random()*letters.length)]; cells.push(ch==='F'?'E':ch); }
+        trials.push({task:'Search', grid:shuffle(cells).join(''), answer:String(target)});
+      }
+      return trials;
+    }
+    const COLORS=[{name:'Red',en:'RED',css:'red'},{name:'Blue',en:'BLUE',css:'blue'},{name:'Green',en:'GREEN',css:'green'},{name:'Yellow',en:'YELLOW',css:'gold'}];
+    function makeStroopTrials(n=16){ const words=COLORS.map(c=>c.en); const t=[]; for(let i=0;i<n;i++){ const w=words[Math.floor(Math.random()*words.length)]; const c=COLORS[Math.floor(Math.random()*COLORS.length)]; t.push({task:'Stroop', word:w, colorCss:c.css, answer:c.en}); } return shuffle(t); }
+    function makeGNGTrials(n=24){ const t=[]; for(let i=0;i<n;i++){ const d=Math.floor(Math.random()*9)+1; const go=d%2===1; t.push({task:'GoNoGo', digit:d, go, answer:go?'PRESS':'NO_PRESS'}); } return shuffle(t); }
+
+    // ======= Screens =======
+    const screens={ welcome:$('#screen_welcome'), inst:$('#screen_instructions'), task:$('#screen_task'), done:$('#screen_done') };
+    const instTitle=$('#inst_title'), instBody=$('#inst_body'), btnBeginTask=$('#btnBeginTask');
+    function showOnly(el){ Object.values(screens).forEach(x=>x.classList.add('hidden')); el.classList.remove('hidden'); }
+
+    function toInstructions(idx){
+      STATE.taskIndex=idx; STATE.trialIndex=0; let html='';
+      if(idx===0){ instTitle.textContent='Task 1: Letter Search'; html='Count how many <strong>F</strong> letters appear in the grid, type the number, and submit.<div class="muted">任务一：统计矩阵中 <strong>F</strong> 的数量并提交。</div>'; STATE.trials=makeSearchTrials(6); }
+      else if(idx===1){ instTitle.textContent='Task 2: Stroop'; html='A word appears in color. <strong>Click the INK COLOR</strong>, not the word meaning.<div class="muted">任务二：点击<strong>字体颜色</strong>，而不是单词含义。</div>'; STATE.trials=makeStroopTrials(16); }
+      else { instTitle.textContent='Task 3: Go / No-Go'; html='Press <span class="kbd">J</span> for <strong>odd</strong> numbers; do <strong>not</strong> press for even numbers.<div class="muted">任务三：奇数按 J，偶数不按。</div>'; STATE.trials=makeGNGTrials(24); }
+      instBody.innerHTML = `<div class="card">${html}</div>`; showOnly(screens.inst);
+    }
+    btnBeginTask.addEventListener('click', startTask);
+
+    // ======= Task runtime =======
+    const stim=$('#stimulus'), taskExtra=$('#task_extra'), choicesDiv=$('#choices'), progbar=$('#progbar');
+    const btnUpload=$('#btnUpload'), uploadStatus=$('#upload_status');
+    let trialStart=0, awaiting=false, gngTimer=null;
+    function updateProgress(){ progbar.style.width = ((STATE.trialIndex/STATE.trials.length)*100).toFixed(1)+'%'; }
+    function startTask(){ showOnly(screens.task); updateProgress(); nextTrial(); }
+
+    async function nextTrial(){
+      stim.innerHTML=''; taskExtra.innerHTML=''; choicesDiv.innerHTML=''; awaiting=false;
+      if(STATE.trialIndex>=STATE.trials.length){
+        if(STATE.taskIndex<2){ toInstructions(STATE.taskIndex+1); }
+        else { showOnly(screens.done); $('#btnDownload').disabled=false; $('#btnDownload2').disabled=false; if(ENDPOINT){ btnUpload.disabled=false; try{ await uploadData(); }catch(e){} } }
+        return;
+      }
+      updateProgress(); const t=STATE.trials[STATE.trialIndex];
+
+      if(t.task==='Search'){
+        stim.textContent='+'; stim.classList.add('big'); await sleep(350); stim.classList.remove('big');
+        const grid=document.createElement('div'); grid.className='grid';
+        for(const ch of t.grid){ const d=document.createElement('div'); d.className='cell'; d.textContent=ch; grid.appendChild(d); }
+        stim.appendChild(grid);
+        const input=document.createElement('input'); input.type='text'; input.placeholder='Enter the number 输入数量'; input.inputMode='numeric'; input.style.padding='10px 12px'; input.style.borderRadius='10px'; input.style.border='1px solid #ddd'; input.style.width='240px';
+        const submit=document.createElement('button'); submit.textContent='Submit 提交';
+        taskExtra.appendChild(input); taskExtra.appendChild(document.createElement('br')); taskExtra.appendChild(document.createElement('br')); taskExtra.appendChild(submit);
+        trialStart=now(); awaiting=true; input.focus();
+        submit.onclick=()=>{ if(!awaiting) return; const response=(input.value||'').trim(); const correct=response===t.answer; const rt=Math.round(now()-trialStart); record({task:'Search', stimulus:t.grid, answer:t.answer, response, correct, rt}); awaiting=false; STATE.trialIndex++; setTimeout(()=>nextTrial(), 200); };
+      }
+
+      if(t.task==='Stroop'){
+        stim.textContent='+'; stim.classList.add('big'); await sleep(350); stim.classList.remove('big');
+        const w=document.createElement('div'); w.textContent=t.word; w.style.color=t.colorCss; w.style.fontSize='64px'; w.style.fontWeight='900'; stim.appendChild(w);
+        for(const c of COLORS){ const b=document.createElement('button'); b.textContent=`${c.name} ${c.en}`; b.style.borderColor='#ccc'; b.onclick=()=>{ if(!awaiting) return; const response=c.en; const correct=response===t.answer; const rt=Math.round(now()-trialStart); record({task:'Stroop', stimulus:`${t.word}|${t.colorCss}`, answer:t.answer, response, correct, rt}); awaiting=false; STATE.trialIndex++; nextTrial(); }; choicesDiv.appendChild(b);} await sleep(60); trialStart=now(); awaiting=true;
+      }
+
+      if(t.task==='GoNoGo'){
+        stim.textContent='+'; stim.classList.add('big'); await sleep(300); stim.classList.remove('big');
+        stim.textContent=String(t.digit); trialStart=now(); awaiting=true; let responded=false;
+        const keyHandler=(e)=>{ if(!awaiting) return; if(e.key.toLowerCase()==='j'){ responded=true; const rt=Math.round(now()-trialStart); const response='PRESS'; const correct=t.go===true; record({task:'GoNoGo', stimulus:String(t.digit), answer:t.answer, response, correct, rt}); cleanup(); } };
+        document.addEventListener('keydown', keyHandler);
+        function cleanup(){ document.removeEventListener('keydown', keyHandler); awaiting=false; STATE.trialIndex++; nextTrial(); }
+        clearTimeout(gngTimer); gngTimer=setTimeout(()=>{ if(!responded){ record({task:'GoNoGo', stimulus:String(t.digit), answer:t.answer, response:'NO_PRESS', correct:t.go===false, rt:null}); } cleanup(); }, 1500);
+      }
+    }
+
+    function record({task,stimulus,answer,response,correct,rt}){
+      STATE.data.push({ pid:STATE.pid, group:STATE.group, task, trial:STATE.trialIndex+1, stimulus, answer, response, correct:correct?1:0, rt_ms:rt, ts:new Date().toISOString() });
+    }
+
+    // ======= Upload & Download =======
+    async function uploadData(){ if(!ENDPOINT) return; const body={ meta:{ pid:STATE.pid, group:STATE.group, userAgent:navigator.userAgent, tz:Intl.DateTimeFormat().resolvedOptions().timeZone }, rows:STATE.data }; if($('#upload_status')) $('#upload_status').textContent='Uploading…'; if($('#btnUpload')) $('#btnUpload').disabled=true; const resp=await fetch(ENDPOINT,{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body), mode:'cors', keepalive:true}); if(!resp.ok) throw new Error('HTTP '+resp.status); await resp.json().catch(()=>({})); if($('#upload_status')) $('#upload_status').textContent='Uploaded ✓'; }
+    if($('#btnUpload')) $('#btnUpload').addEventListener('click', async()=>{ try{ await uploadData(); }catch(e){ $('#upload_status').textContent='Upload failed, try again.'; $('#btnUpload').disabled=false; } });
+
+    function toCSV(rows){
+      const headers = Object.keys(rows[0] || {pid:'',group:'',task:'',trial:'',stimulus:'',answer:'',response:'',correct:'',rt_ms:'',ts:''});
+      const esc = v => {
+        if (v == null) return '';
+        const s = String(v);
+        return /[",\n]/.test(s) ? ('"' + s.replace(/"/g,'""') + '"') : s;
+      };
+      const lines = [headers.join(',')];
+      for (const r of rows) lines.push(headers.map(h=>esc(r[h])).join(','));
+      return lines.join('\n');
+    }
+    // ---- lightweight tests (run with ?runTests=1) ----
+    (function(){
+      const params = new URLSearchParams(location.search);
+      if (params.get('runTests') === '1') {
+        const rows = [
+          {a:'x', b:'y,z'},
+          {a:'"q"', b:'line\nbreak'},
+        ];
+        const out = (function(){
+          const headers = Object.keys(rows[0]);
+          const esc = v => /[",\n]/.test(String(v)) ? ('"'+String(v).replace(/"/g,'""')+'"') : String(v);
+          const lines = [headers.join(',')];
+          for (const r of rows) lines.push(headers.map(h=>esc(r[h])).join(','));
+          return lines.join('\n');
+        })();
+        console.assert(out.includes('""q""'), 'should escape quotes');
+        console.assert(out.split('\n').length === 3, 'should join with newlines');
+        console.log('CSV tests passed');
+      }
+    })();
+
+    function downloadCSV(){ const csv=toCSV(STATE.data); const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); const fname=`fidget_attention_${STATE.pid||'PID'}_${new Date().toISOString().replace(/[:.]/g,'-')}.csv`; a.href=url; a.download=fname; a.click(); URL.revokeObjectURL(url); }
+    $('#btnDownload')?.addEventListener('click', downloadCSV); $('#btnDownload2')?.addEventListener('click', downloadCSV);
+  </script>
+</body>
+</html>
