@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fidget Toys 注意力实验 | 反应时间测量</title>
+  <style>
+    :root { --maxw: 900px; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif; line-height: 1.5; margin: 0; background: #f7f7fb; color: #111; }
+    header { background: white; border-bottom: 1px solid #eee; position: sticky; top: 0; z-index: 10; }
+    header .wrap { max-width: var(--maxw); margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; }
+    main { max-width: var(--maxw); margin: 24px auto; padding: 0 16px 48px; }
+    .card { background: white; border: 1px solid #eee; border-radius: 14px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.04); margin: 16px 0; }
+    h1 { font-size: 22px; margin: 6px 0; }
+    h2 { font-size: 20px; margin-top: 0; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    label { font-weight: 600; font-size: 14px; }
+    input[type="text"], select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #ddd; }
+    button { padding: 10px 14px; border-radius: 12px; border: 1px solid #222; background: #111; color: #fff; cursor: pointer; font-weight: 700; }
+    button.secondary { background: #fff; color: #111; border-color: #ddd; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .center { text-align: center; }
+    .muted { color: #666; font-size: 13px; }
+    .progress { height: 8px; background: #eee; border-radius: 999px; overflow: hidden; }
+    .bar { height: 100%; background: #111; width: 0%; transition: width 200ms linear; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div><strong>Fidget Toys 注意力实验</strong> <span class="muted">反应时间测量</span></div>
+      <div>
+        <button id="btnUpload" class="secondary" title="上传到研究表" disabled>上传到服务器</button>
+        <button id="btnDownload" class="secondary" title="下载CSV数据" disabled>下载数据 CSV</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="screen_welcome" class="card">
+      <h1>欢迎参加实验 Welcome</h1>
+      <p class="muted">请填写基本信息并勾选知情同意。实验包含三个小任务。每个题目都会记录作答时间。</p>
+      <div class="row">
+        <div>
+          <label>被试编号 Participant ID</label>
+          <input id="pid" type="text" placeholder="如 S001" />
+        </div>
+        <div>
+          <label>组别 Group</label>
+          <select id="group">
+            <option value="FT">使用 fidget toy</option>
+            <option value="NOFT">不使用 fidget toy</option>
+          </select>
+        </div>
+      </div>
+      <p><label><input id="consent" type="checkbox" /> 我同意参与本研究 I consent to participate</label></p>
+      <div class="center"><button id="btnStart" disabled>开始实验 Start</button></div>
+    </section>
+
+    <section id="screen_done" class="card hidden">
+      <h2>完成 Thanks</h2>
+      <p>已完成全部任务。你可以下载CSV，或点击上方“上传到服务器”直接汇总到你的研究表。</p>
+      <div class="center"><button id="btnDownload2" class="secondary">下载数据 CSV</button></div>
+      <p id="upload_status" class="muted"></p>
+    </section>
+  </main>
+
+  <script>
+    const ENDPOINT = 'https://script.google.com/macros/s/AKfycbwaK_9U8tmfsTyUhMESMqrQKJHD9crd7HtllnlgHUkHEadg0qEWKJP4ZJH2F7J1wPNR/exec';
+    console.log('Upload endpoint set to', ENDPOINT);
+  </script>
+</body>
+</html>
