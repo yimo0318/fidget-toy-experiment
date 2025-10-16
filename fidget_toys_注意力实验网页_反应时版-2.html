@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fidget Toys 注意力实验 | 反应时间测量</title>
+  <style>
+    :root { --maxw: 900px; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif; line-height: 1.5; margin: 0; background: #f7f7fb; color: #111; }
+    header { background: white; border-bottom: 1px solid #eee; position: sticky; top: 0; z-index: 10; }
+    header .wrap { max-width: var(--maxw); margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; }
+    main { max-width: var(--maxw); margin: 24px auto; padding: 0 16px 48px; }
+    .card { background: white; border: 1px solid #eee; border-radius: 14px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.04); margin: 16px 0; }
+    h1 { font-size: 22px; margin: 6px 0; }
+    h2 { font-size: 20px; margin-top: 0; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    label { font-weight: 600; font-size: 14px; }
+    input[type="text"], select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #ddd; }
+    button { padding: 10px 14px; border-radius: 12px; border: 1px solid #222; background: #111; color: #fff; cursor: pointer; font-weight: 700; }
+    button.secondary { background: #fff; color: #111; border-color: #ddd; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .center { text-align: center; }
+    .muted { color: #666; font-size: 13px; }
+    .hr { height:1px; background:#eee; margin:18px 0; }
+    .progress { height: 8px; background: #eee; border-radius: 999px; overflow: hidden; }
+    .bar { height: 100%; background: #111; width: 0%; transition: width 200ms linear; }
+    .big { font-size: 42px; letter-spacing:.5px; }
+    .stim { font-size: 56px; font-weight: 800; margin: 28px 0 10px; text-align: center; }
+    .choices { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 12px 0; }
+    .grid { display:grid; grid-template-columns: repeat(18, 1fr); gap: 4px; align-items:center; justify-items:center; }
+    .cell { padding: 2px 2px; font-size: 22px; }
+    .kbd { font-family: ui-monospace, monospace; background: #111; color: white; padding: 2px 6px; border-radius: 6px; }
+    .hidden { display: none !important; }
+    .footer { text-align:center; color:#888; font-size:12px; margin-top:24px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div><strong>Fidget Toys 注意力实验</strong> <span class="muted">反应时间测量</span></div>
+      <div>
+        <button id="btnUpload" class="secondary" title="上传到研究表" disabled>上传到服务器</button>
+        <button id="btnDownload" class="secondary" title="下载CSV数据" disabled>下载数据 CSV</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 欢迎与登记 -->
+    <section id="screen_welcome" class="card">
+      <h1>欢迎参加实验 Welcome</h1>
+      <p class="muted">请填写基本信息并勾选知情同意。实验包含三个小任务。每个题目都会记录作答时间。</p>
+      <div class="row">
+        <div>
+          <label>被试编号 Participant ID</label>
+          <input id="pid" type="text" placeholder="如 S001" />
+        </div>
+        <div>
+          <label>组别 Group</label>
+          <select id="group">
+            <option value="FT">使用 fidget toy</option>
+            <option value="NOFT">不使用 fidget toy</option>
+          </select>
+        </div>
+      </div>
+      <p><label><input id="consent" type="checkbox" /> 我同意参与本研究 I consent to participate</label></p>
+      <div class="center"><button id="btnStart" disabled>开始实验 Start</button></div>
+    </section>
+
+    <!-- 统一说明屏 -->
+    <section id="screen_instructions" class="card hidden">
+      <h2 id="inst_title">说明 Instructions</h2>
+      <div id="inst_body"></div>
+      <div class="center"><button id="btnBeginTask">开始 Begin</button></div>
+    </section>
+
+    <!-- 任务屏幕 -->
+    <section id="screen_task" class="card hidden">
+      <div class="progress"><div id="progbar" class="bar"></div></div>
+      <div id="stimulus" class="stim"></div>
+      <div id="task_extra" class="center"></div>
+      <div id="choices" class="choices"></div>
+      <div class="center"><button id="btnNext" class="secondary hidden">下一题 Next</button></div>
+    </section>
+
+    <!-- 完成 -->
+    <section id="screen_done" class="card hidden">
+      <h2>完成 Thanks</h2>
+      <p>已完成全部任务。你可以下载CSV，或点击上方“上传到服务器”直接汇总到你的研究表。</p>
+      <div class="center"><button id="btnDownload2" class="secondary">下载数据 CSV</button></div>
+      <p id="upload_status" class="muted"></p>
+    </section>
+
+    <div class="footer">v1.1 | 记录每题反应时间（毫秒）| 顺序：字母搜索 → Stroop → Go/No-Go</div>
+  </main>
+
+  <script>
+    // ======= 可配置：上传接口（你的 Google Apps Script URL）=======
+    const ENDPOINT = 'https://script.google.com/macros/s/AKfycbwaK_9U8tmfsTyUhMESMqrQKJHD9crd7HtllnlgHUkHEadg0qEWKJP4ZJH2F7J1wPNR/exec';
+
+    // ======= 工具函数 =======
+    const $ = sel => document.querySelector(sel);
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const shuffle = arr => arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
+    const now = () => performance.now();
+
+    // ======= 全局状态 =======
+    const STATE = { pid:'', group:'', taskIndex:0, trialIndex:0, trials:[], data:[] };
+
+    // ======= 登记页逻辑（修复按钮不可点问题）=======
+    const pidInput = $('#pid');
+    const groupSel = $('#group');
+    const consent = $('#consent');
+    const btnStart = $('#btnStart');
+
+    function updateStartEnabled(){
+      const ok = pidInput.value.trim().length > 0 && consent.checked;
+      btnStart.disabled = !ok;
+    }
+    ['input','change','keyup'].forEach(ev=>{
+      pidInput.addEventListener(ev, updateStartEnabled);
+      groupSel.addEventListener(ev, updateStartEnabled);
+      consent.addEventListener(ev, updateStartEnabled);
+    });
+    // 兜底：页面加载后每500ms检查一次，避免脚本延迟导致按钮一直灰
+    setInterval(updateStartEnabled, 500);
+
+    btnStart.addEventListener('click', () => {
+      STATE.pid = pidInput.value.trim();
+      STATE.group = groupSel.value || 'FT';
+      toInstructions(0);
+    });
+
+    // ======= 三个任务的生成 =======
+    function makeSearchTrials(n=6) {
+      const trials=[]; const letters="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      for(let i=0;i<n;i++){
+        const width=18, height=6; const targetCount=Math.floor(Math.random()*4)+6; // 6-9
+        let cells=[]; for(let k=0;k<targetCount;k++) cells.push('F');
+        while(cells.length<width*height){ const ch=letters[Math.floor(Math.random()*letters.length)]; cells.push(ch==='F'?'E':ch);} 
+        cells=shuffle(cells);
+        trials.push({ task:'Search', grid:cells.join(''), width, height, answer:String(targetCount) });
+      }
+      return trials;
+    }
+
+    const COLORS=[{name:'红',en:'RED',css:'red'},{name:'蓝',en:'BLUE',css:'blue'},{name:'绿',en:'GREEN',css:'green'},{name:'黄',en:'YELLOW',css:'gold'}];
+    function makeStroopTrials(n=16){ const words=COLORS.map(c=>c.en); const trials=[]; for(let i=0;i<n;i++){ const word=words[Math.floor(Math.random()*words.length)]; const color=COLORS[Math.floor(Math.random()*COLORS.length)]; trials.push({task:'Stroop', word, colorCss:color.css, answer:color.en}); } return shuffle(trials); }
+
+    function makeGNGTrials(n=24){ const trials=[]; for(let i=0;i<n;i++){ const d=Math.floor(Math.random()*9)+1; const isGo=d%2===1; trials.push({task:'GoNoGo', digit:d, go:isGo, answer:isGo?'PRESS':'NO_PRESS'});} return shuffle(trials); }
+
+    // ======= 指导语 & 任务切换 =======
+    const screens={ welcome:$('#screen_welcome'), inst:$('#screen_instructions'), task:$('#screen_task'), done:$('#screen_done') };
+    const instTitle=$('#inst_title'); const instBody=$('#inst_body'); const btnBeginTask=$('#btnBeginTask');
+
+    function showOnly(el){ Object.values(screens).forEach(x=>x.classList.add('hidden')); el.classList.remove('hidden'); }
+
+    function toInstructions(taskIndex){
+      STATE.taskIndex=taskIndex; STATE.trialIndex=0; let html='';
+      if(taskIndex===0){ instTitle.textContent='任务一 字母搜索'; html='请在字母矩阵中统计字母 F 的数量 并在框内输入数字 然后提交 速度与准确都很重要。'; STATE.trials=makeSearchTrials(6); }
+      else if(taskIndex===1){ instTitle.textContent='任务二 Stroop'; html='屏幕会显示英文单词 但请报告其<em>字体颜色</em> 而不是单词含义 点击对应颜色按钮。'; STATE.trials=makeStroopTrials(16); }
+      else { instTitle.textContent='任务三 Go / No-Go'; html='看到<em>奇数</em>请尽快按下 <span class="kbd">J</span> 键 看到<em>偶数</em>不要按键。'; STATE.trials=makeGNGTrials(24); }
+      instBody.innerHTML = `<div class="card">${html}</div>`; showOnly(screens.inst);
+    }
+    btnBeginTask.addEventListener('click', startTask);
+
+    // ======= 呈现流程 =======
+    const stim=$('#stimulus'); const choicesDiv=$('#choices'); const taskExtra=$('#task_extra'); const btnNext=$('#btnNext'); const progbar=$('#progbar');
+    const btnUpload=$('#btnUpload'); const uploadStatus=$('#upload_status');
+
+    let trialStart=0; let awaiting=false; let gngTimer=null;
+    function updateProgress(){ const pct=(STATE.trialIndex/STATE.trials.length)*100; progbar.style.width=pct.toFixed(1)+'%'; }
+
+    function startTask(){ showOnly(screens.task); updateProgress(); nextTrial(); }
+
+    async function nextTrial(){
+      btnNext.classList.add('hidden'); stim.innerHTML=''; taskExtra.innerHTML=''; choicesDiv.innerHTML=''; awaiting=false;
+      if(STATE.trialIndex>=STATE.trials.length){
+        if(STATE.taskIndex<2){ toInstructions(STATE.taskIndex+1); }
+        else { showOnly(screens.done); $('#btnDownload').disabled=false; $('#btnDownload2').disabled=false; if(ENDPOINT){ btnUpload.disabled=false; try{ await uploadData(); }catch(e){} } }
+        return; }
+
+      updateProgress(); const t=STATE.trials[STATE.trialIndex];
+
+      if(t.task==='Search'){
+        stim.textContent='+'; stim.classList.add('big'); await sleep(400); stim.classList.remove('big');
+        const grid=document.createElement('div'); grid.className='grid';
+        for(let i=0;i<t.grid.length;i++){ const span=document.createElement('div'); span.className='cell'; span.textContent=t.grid[i]; grid.appendChild(span);} 
+        stim.appendChild(grid);
+        const input=document.createElement('input'); input.type='text'; input.placeholder='输入F的数量 Enter number'; input.inputMode='numeric'; input.style.padding='10px 12px'; input.style.borderRadius='10px'; input.style.border='1px solid #ddd'; input.style.width='240px';
+        const submitBtn=document.createElement('button'); submitBtn.textContent='提交 Submit';
+        taskExtra.appendChild(input); taskExtra.appendChild(document.createElement('br')); taskExtra.appendChild(document.createElement('br')); taskExtra.appendChild(submitBtn);
+        trialStart=now(); awaiting=true; input.focus();
+        submitBtn.onclick=()=>{ if(!awaiting) return; const response=(input.value||'').trim(); const correct=response===t.answer; const rt=Math.round(now()-trialStart); record({task:'Search', stimulus:t.grid, answer:t.answer, response, correct, rt}); awaiting=false; STATE.trialIndex++; btnNext.classList.remove('hidden'); };
+      }
+
+      if(t.task==='Stroop'){
+        stim.textContent='+'; stim.classList.add('big'); await sleep(400); stim.classList.remove('big');
+        const wordDiv=document.createElement('div'); wordDiv.textContent=t.word; wordDiv.style.color=t.colorCss; wordDiv.style.fontSize='64px'; wordDiv.style.fontWeight='900'; stim.appendChild(wordDiv);
+        for(const c of COLORS){ const b=document.createElement('button'); b.textContent=`${c.name} ${c.en}`; b.style.borderColor='#ccc'; b.onclick=()=>{ if(!awaiting) return; const response=c.en; const correct=response===t.answer; const rt=Math.round(now()-trialStart); record({task:'Stroop', stimulus:`${t.word}|${t.colorCss}`, answer:t.answer, response, correct, rt}); awaiting=false; STATE.trialIndex++; nextTrial(); }; choicesDiv.appendChild(b);} 
+        await sleep(75); trialStart=now(); awaiting=true;
+      }
+
+      if(t.task==='GoNoGo'){
+        stim.textContent='+'; stim.classList.add('big'); await sleep(350); stim.classList.remove('big');
+        stim.textContent=String(t.digit); trialStart=now(); awaiting=true; let responded=false;
+        const keyHandler=(e)=>{ if(!awaiting) return; if(e.key.toLowerCase()==='j'){ responded=true; const rt=Math.round(now()-trialStart); const response='PRESS'; const correct=t.go===true; record({task:'GoNoGo', stimulus:String(t.digit), answer:t.answer, response, correct, rt}); cleanup(); } };
+        document.addEventListener('keydown', keyHandler);
+        function cleanup(){ document.removeEventListener('keydown', keyHandler); awaiting=false; STATE.trialIndex++; nextTrial(); }
+        clearTimeout(gngTimer); gngTimer=setTimeout(()=>{ if(!responded){ record({task:'GoNoGo', stimulus:String(t.digit), answer:t.answer, response:'NO_PRESS', correct:t.go===false, rt:null}); } cleanup(); },1500);
+      }
+    }
+
+    function record({task, stimulus, answer, response, correct, rt}){
+      STATE.data.push({ pid:STATE.pid, group:STATE.group, task, trial:STATE.trialIndex+1, stimulus, answer, response, correct:correct?1:0, rt_ms:rt, ts:new Date().toISOString() });
+      if(task==='Search') $('#btnNext').classList.remove('hidden');
+    }
+
+    // ======= 上传到服务器 =======
+    async function uploadData(){ if(!ENDPOINT) return; const body={ meta:{ pid:STATE.pid, group:STATE.group, userAgent:navigator.userAgent, tz:Intl.DateTimeFormat().resolvedOptions().timeZone }, rows:STATE.data };
+      if(uploadStatus) uploadStatus.textContent='正在上传… uploading…'; if(btnUpload) btnUpload.disabled=true;
+      const resp = await fetch(ENDPOINT,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body), mode:'cors', keepalive:true });
+      if(!resp.ok) throw new Error('HTTP '+resp.status); await resp.json().catch(()=>({})); if(uploadStatus) uploadStatus.textContent='上传成功 uploaded ✓'; return true; }
+
+    if(btnUpload){ btnUpload.addEventListener('click', async()=>{ try{ await uploadData(); }catch(e){ uploadStatus.textContent='上传失败，请稍后重试 upload failed'; btnUpload.disabled=false; }}); }
+
+    // ======= 下载CSV =======
+    function toCSV(rows){ const headers=Object.keys(rows[0]||{pid:'',group:'',task:'',trial:'',stimulus:'',answer:'',response:'',correct:'',rt_ms:'',ts:''}); const esc=v=>{ if(v===null||v===undefined) return ''; const s=String(v); return /[",\n]/.test(s)?('"'+s.replace(/"/g,'""')+'"'):s; }; const lines=[headers.join(',')]; for(const r of rows) lines.push(headers.map(h=>esc(r[h])).join(',')); return lines.join('\n'); }
+    function downloadCSV(){ const csv=toCSV(STATE.data); const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); const fname=`fidget_attention_${STATE.pid||'PID'}_${new Date().toISOString().replace(/[:.]/g,'-')}.csv`; a.href=url; a.download=fname; a.click(); URL.revokeObjectURL(url); }
+    $('#btnDownload').addEventListener('click', downloadCSV); $('#btnDownload2').addEventListener('click', downloadCSV);
+
+    // 回车键支持：仅在Search任务有“下一题”按钮时生效
+    window.addEventListener('keydown',(e)=>{ if(e.key.toLowerCase()==='enter'){ if(!screens.task.classList.contains('hidden') && !$('#btnNext').classList.contains('hidden')){ nextTrial(); } } });
+  </script>
+</body>
+</html>
